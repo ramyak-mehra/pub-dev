@@ -7,6 +7,7 @@ import 'dart:isolate';
 
 import 'package:args/command_runner.dart';
 import 'package:logging/logging.dart';
+import 'package:pub_dev/tool/tracer/tracer.dart';
 
 import '../../dartdoc/dartdoc_runner.dart';
 import '../../dartdoc/handlers.dart';
@@ -80,6 +81,7 @@ Future _workerMain(WorkerEntryMessage message) async {
       message.statsSendPort.send({
         'backend': await jobBackend.stats(JobService.dartdoc),
         'processor': jobProcessor.stats(),
+        'traces': traceAggregator.asSortedMap(),
       });
     });
 

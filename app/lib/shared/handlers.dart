@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:pub_dev/tool/tracer/tracer.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
 import '../frontend/request_context.dart';
@@ -115,6 +116,7 @@ shelf.Response debugResponse([Map<String, dynamic> data]) {
       }
     },
     'scheduler': latestSchedulerStats,
+    'traces': traceAggregator.asSortedMap(),
   };
   if (data != null) {
     map.addAll(data);

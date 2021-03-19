@@ -7,6 +7,7 @@ import 'dart:isolate';
 
 import 'package:args/command_runner.dart';
 import 'package:logging/logging.dart';
+import 'package:pub_dev/tool/tracer/tracer.dart';
 
 import '../../analyzer/handlers.dart';
 import '../../analyzer/pana_runner.dart';
@@ -73,7 +74,10 @@ Future _workerMain(WorkerEntryMessage message) async {
     final jobMaintenance = JobMaintenance(db.dbService, jobProcessor);
 
     Timer.periodic(const Duration(minutes: 15), (_) async {
-      message.statsSendPort.send(await jobBackend.stats(JobService.analyzer));
+      message.statsSendPort.send({
+        'jobs': await jobBackend.stats(JobService.analyzer),
+        'traces': traceAggregator.asSortedMap(),
+      });
     });
 
     await jobMaintenance.run();

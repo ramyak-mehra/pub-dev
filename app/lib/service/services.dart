@@ -2,7 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'dart:async' show FutureOr, Zone;
+import 'dart:async' show FutureOr, StreamSubscription, Zone;
+import 'dart:io';
 
 import 'package:appengine/appengine.dart';
 import 'package:fake_gcloud/mem_datastore.dart';
@@ -14,6 +15,9 @@ import 'package:meta/meta.dart';
 import 'package:pub_dev/fake/server/fake_storage_server.dart';
 import 'package:pub_dev/service/csp/backend.dart';
 import 'package:pub_dev/service/youtube/backend.dart';
+import 'package:pub_dev/tool/tracer/tracer.dart';
+import 'package:pub_dev/tool/tracer/tracing_datastore.dart';
+import 'package:pub_dev/tool/tracer/tracing_storage.dart';
 
 import '../account/backend.dart';
 import '../account/consent_backend.dart';
@@ -146,6 +150,18 @@ Future<void> withFakeServices({
 /// tools and integration tests.
 Future<void> _withPubServices(FutureOr<void> Function() fn) async {
   return fork(() async {
+    if (activeConfiguration.projectId != 'dartlang-pub'
+        // && Platform.environment.containsKey('PUB_TRACER')
+        ) {
+      final rate = int.tryParse(Platform.environment['PUB_TRACER'] ?? '1') ?? 1;
+      final tracer = SamplingTracer(rate: rate);
+      registerDbService(
+          DatastoreDB(TracingDatastore(dbService.datastore, tracer)));
+      registerStorageService(TracingStorage(storageService, tracer));
+      final traceSubscription = tracer.stream.listen(traceAggregator.add);
+      registerScopeExitCallback(traceSubscription.cancel);
+    }
+
     registerAccountBackend(AccountBackend(dbService));
     registerAdminBackend(AdminBackend(dbService));
     registerAnalyzerClient(AnalyzerClient());
