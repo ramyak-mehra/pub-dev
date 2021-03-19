@@ -60,17 +60,21 @@ class SamplingTracer extends _AbstractTracer {
 }
 
 class TraceAggregator {
-  final _root = TraceTreeNode('root');
+  final _topDown = TraceTreeNode('topDown');
+  final _bottomUp = TraceTreeNode('bottomUp');
 
   void add(Trace trace) {
-    _root.addTrace(trace);
+    _topDown.addTrace(trace.frames.reversed);
+    _bottomUp.addTrace(trace.frames);
   }
 
-  Map<String, dynamic> asSortedMap() => _root.asSortedMap();
+  Map<String, dynamic> asSortedMap() => {
+        ..._topDown.asSortedMap(),
+        ..._bottomUp.asSortedMap(),
+      };
 
   String asSortedJson() {
-    final map = _root.asSortedMap();
-    return JsonEncoder.withIndent('  ').convert(map);
+    return JsonEncoder.withIndent('  ').convert(asSortedMap());
   }
 }
 
@@ -84,10 +88,10 @@ class TraceTreeNode {
 
   TraceTreeNode(this.id);
 
-  void addTrace(Trace trace) {
+  void addTrace(Iterable<Frame> frames) {
     var node = this;
     node.counter++;
-    for (final frame in trace.frames.reversed) {
+    for (final frame in frames) {
       if (frame.isCore) continue;
       final childId = '${frame.member} in ${frame.location}';
       node.children ??= <TraceTreeNode>[];
@@ -104,14 +108,23 @@ class TraceTreeNode {
     }
   }
 
-  Map<String, dynamic> asSortedMap() {
+  Map<String, dynamic> asSortedMap({bool complete = false}) {
     if (children == null || children.isEmpty) {
       return {id: counter};
     } else {
       children.sort((a, b) => -a.counter.compareTo(b.counter));
       final map = <String, dynamic>{};
+      final limit = complete ? 0 : counter ~/ 100;
+      var skipped = 0;
       for (final c in children) {
+        if (c.counter < limit) {
+          skipped += c.counter;
+          continue;
+        }
         map.addAll(c.asSortedMap());
+      }
+      if (skipped > 0) {
+        map['skipped'] = skipped;
       }
       return {'[$counter] $id': map};
     }
